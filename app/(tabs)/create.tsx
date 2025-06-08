@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,13 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Toast from 'react-native-toast-message';
 import { ThemedView } from '@/components/ThemedView';
-import { useTasks } from '../../../hooks/useTasks';
-import { Task } from '../../../types';
+import { ThemedText } from '@/components/ThemedText';
+import { useTasks } from '../../hooks/useTasks';
+import { CreateTaskData } from '../../types';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 const DAYS_OF_WEEK = [
@@ -35,32 +36,17 @@ const REMINDER_INTERVALS = [
   { label: '60分', value: 60 },
 ];
 
-export default function EditTaskScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { tasks, updateTask } = useTasks();
+export default function CreateTabScreen() {
+  const { createTask } = useTasks();
   const colorScheme = useColorScheme();
-  
   const [taskName, setTaskName] = useState('');
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [scheduledTimes, setScheduledTimes] = useState<string[]>(['08:00']);
   const [reminderInterval, setReminderInterval] = useState(10);
   const [isActive, setIsActive] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [editingTimeIndex, setEditingTimeIndex] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const task = tasks.find(t => t.id === id);
-    if (task) {
-      setTaskName(task.name);
-      setSelectedDays(task.daysOfWeek);
-      setScheduledTimes(task.scheduledTimes);
-      setReminderInterval(task.reminderInterval);
-      setIsActive(task.isActive);
-      setLoading(false);
-    }
-  }, [id, tasks]);
 
   const toggleDay = (day: number) => {
     setSelectedDays(prev => 
@@ -135,12 +121,12 @@ export default function EditTaskScreen() {
     return true;
   };
 
-  const handleUpdate = async () => {
+  const handleCreate = async () => {
     if (!validateForm()) return;
 
     try {
-      setUpdating(true);
-      const taskData = {
+      setCreating(true);
+      const taskData: CreateTaskData = {
         name: taskName.trim(),
         scheduledTimes,
         daysOfWeek: selectedDays,
@@ -148,33 +134,34 @@ export default function EditTaskScreen() {
         isActive,
       };
 
-      await updateTask(id, taskData);
+      await createTask(taskData);
       Toast.show({
         type: 'success',
-        text1: 'タスクを更新しました',
+        text1: 'タスクを作成しました',
         visibilityTime: 2000,
       });
       
-      // 前の画面に戻る（アニメーション付き）
-      router.back();
+      // フォームをリセット
+      setTaskName('');
+      setSelectedDays([]);
+      setScheduledTimes(['08:00']);
+      setReminderInterval(10);
+      setIsActive(true);
+      
+      // タスク一覧タブに移動（アニメーション付き）
+      setTimeout(() => {
+        router.push('/(tabs)/tasks');
+      }, 300);
     } catch {
       Toast.show({
         type: 'error',
-        text1: 'タスクの更新に失敗しました',
+        text1: 'タスクの作成に失敗しました',
         visibilityTime: 3000,
       });
     } finally {
-      setUpdating(false);
+      setCreating(false);
     }
   };
-
-  if (loading) {
-    return (
-      <ThemedView style={styles.container}>
-        <Text style={styles.loadingText}>読み込み中...</Text>
-      </ThemedView>
-    );
-  }
 
   return (
     <ThemedView style={styles.container}>
@@ -276,17 +263,13 @@ export default function EditTaskScreen() {
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => router.back()}
+            style={[styles.createButton, creating && styles.disabledButton]}
+            onPress={handleCreate}
+            disabled={creating}
           >
-            <Text style={styles.cancelButtonText}>キャンセル</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.updateButton}
-            onPress={handleUpdate}
-            disabled={updating}
-          >
-            <Text style={styles.updateButtonText}>更新</Text>
+            <Text style={styles.createButtonText}>
+              {creating ? '作成中...' : '作成'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -311,12 +294,6 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     padding: 20,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 50,
   },
   section: {
     marginBottom: 20,
@@ -437,34 +414,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginTop: 20,
     marginBottom: 40,
   },
-  cancelButton: {
-    flex: 1,
+  createButton: {
     paddingVertical: 12,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  updateButton: {
-    flex: 1,
-    paddingVertical: 12,
-    marginLeft: 10,
     backgroundColor: '#2196F3',
     borderRadius: 8,
     alignItems: 'center',
   },
-  updateButtonText: {
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
+  createButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',

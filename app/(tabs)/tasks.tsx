@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useTasks } from '../../hooks/useTasks';
@@ -30,8 +31,17 @@ export default function TasksScreen() {
           onPress: async () => {
             try {
               await deleteTask(task.id);
+              Toast.show({
+                type: 'success',
+                text1: 'タスクを削除しました',
+                visibilityTime: 2000,
+              });
             } catch {
-              Alert.alert('エラー', 'タスクの削除に失敗しました');
+              Toast.show({
+                type: 'error',
+                text1: 'タスクの削除に失敗しました',
+                visibilityTime: 3000,
+              });
             }
           },
         },
@@ -51,19 +61,24 @@ export default function TasksScreen() {
       </View>
       
       <View style={styles.taskDetails}>
-        <Text style={styles.detailLabel}>実行時刻:</Text>
-        <Text style={styles.detailValue}>{item.scheduledTimes.join(', ')}</Text>
+        <Text style={styles.detailLabel}>やる時間:</Text>
+        <Text style={styles.detailValue}>{item.scheduledTimes.sort().join(', ')}</Text>
       </View>
       
       <View style={styles.taskDetails}>
         <Text style={styles.detailLabel}>曜日:</Text>
         <Text style={styles.detailValue}>
-          {item.daysOfWeek.map(day => DAYS_OF_WEEK_LABELS[day]).join(', ')}
+          {item.daysOfWeek.sort((a, b) => {
+            // 日曜(0)を7として扱い、月曜(1)から昇順にソート
+            const dayA = a === 0 ? 7 : a;
+            const dayB = b === 0 ? 7 : b;
+            return dayA - dayB;
+          }).map(day => DAYS_OF_WEEK_LABELS[day]).join(', ')}
         </Text>
       </View>
       
       <View style={styles.taskDetails}>
-        <Text style={styles.detailLabel}>リマインド間隔:</Text>
+        <Text style={styles.detailLabel}>お知らせ間隔:</Text>
         <Text style={styles.detailValue}>{item.reminderInterval}分</Text>
       </View>
       
@@ -94,7 +109,6 @@ export default function TasksScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>タスク管理</ThemedText>
       
       {error && (
         <Text style={styles.errorText}>{error}</Text>
@@ -105,7 +119,7 @@ export default function TasksScreen() {
           <Text style={styles.emptyText}>タスクがありません</Text>
           <TouchableOpacity
             style={styles.createFirstButton}
-            onPress={() => router.push('/tasks/create')}
+            onPress={() => router.push('/(tabs)/create')}
           >
             <Text style={styles.createFirstButtonText}>最初のタスクを作成</Text>
           </TouchableOpacity>
@@ -127,9 +141,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-  },
-  title: {
-    marginBottom: 20,
   },
   list: {
     flex: 1,

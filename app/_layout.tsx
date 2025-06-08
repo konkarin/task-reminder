@@ -3,7 +3,9 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { View, Text } from 'react-native';
 import 'react-native-reanimated';
+import Toast from 'react-native-toast-message';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AppService } from '../services/AppService';
@@ -43,6 +45,46 @@ export default function RootLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />
+      <Toast 
+        config={{
+          success: (props) => (
+            <View style={{
+              backgroundColor: '#4CAF50',
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderRadius: 8,
+              marginHorizontal: 20,
+            }}>
+              <Text style={{
+                color: 'white',
+                fontSize: 16,
+                fontWeight: 'bold',
+                textAlign: 'center',
+              }}>
+                {props.text1}
+              </Text>
+            </View>
+          ),
+          error: (props) => (
+            <View style={{
+              backgroundColor: '#f44336',
+              paddingHorizontal: 20,
+              paddingVertical: 12,
+              borderRadius: 8,
+              marginHorizontal: 20,
+            }}>
+              <Text style={{
+                color: 'white',
+                fontSize: 16,
+                fontWeight: 'bold',
+                textAlign: 'center',
+              }}>
+                {props.text1}
+              </Text>
+            </View>
+          ),
+        }}
+      />
     </ThemeProvider>
   );
 }

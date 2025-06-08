@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
@@ -16,6 +16,7 @@ export default function HomeScreen() {
   const { executions, loading, refreshing, error, completeExecution, refresh } = useTodayExecutions();
   const { tasks } = useTasks();
   const { hasPermission, requestPermission } = useNotifications();
+  const [completingTasks, setCompletingTasks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!hasPermission) {
@@ -30,38 +31,59 @@ export default function HomeScreen() {
     }, [refresh])
   );
 
-  const executionsWithTaskNames: TaskExecutionWithTask[] = executions.map(execution => ({
-    ...execution,
-    taskName: tasks.find(task => task.id === execution.taskId)?.name || 'Unknown Task',
-  }));
+  const executionsWithTaskNames: TaskExecutionWithTask[] = executions
+    .filter(execution => execution.status === 'pending') // 完了タスクを除外
+    .map(execution => ({
+      ...execution,
+      taskName: tasks.find(task => task.id === execution.taskId)?.name || 'タスク名不明',
+    }));
 
   const handleCompleteTask = async (executionId: string) => {
     try {
-      await completeExecution(executionId);
+      // 完了中のタスクとして追加
+      setCompletingTasks(prev => new Set(prev).add(executionId));
+      
+      // 2秒後にタスクを完了してリストから削除
+      setTimeout(async () => {
+        await completeExecution(executionId);
+        setCompletingTasks(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(executionId);
+          return newSet;
+        });
+      }, 2000);
     } catch (error) {
       console.error('Failed to complete task:', error);
+      // エラーの場合は完了中状態をリセット
+      setCompletingTasks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(executionId);
+        return newSet;
+      });
     }
   };
 
-  const renderTaskItem = ({ item }: { item: TaskExecutionWithTask }) => (
-    <View style={styles.taskItem}>
-      <View style={styles.taskInfo}>
-        <Text style={styles.taskName}>{item.taskName}</Text>
-        <Text style={styles.taskTime}>{item.scheduledTime}</Text>
-        <Text style={[styles.taskStatus, item.status === 'completed' && styles.completedStatus]}>
-          {item.status === 'completed' ? '✓ 完了' : '未完了'}
-        </Text>
-      </View>
-      {item.status === 'pending' && (
+  const renderTaskItem = ({ item }: { item: TaskExecutionWithTask }) => {
+    const isCompleting = completingTasks.has(item.id);
+    
+    return (
+      <View style={styles.taskItem}>
         <TouchableOpacity
-          style={styles.completeButton}
+          style={styles.checkbox}
           onPress={() => handleCompleteTask(item.id)}
+          disabled={isCompleting}
         >
-          <Text style={styles.completeButtonText}>完了</Text>
+          <View style={styles.checkboxCircle}>
+            {isCompleting && <View style={styles.checkboxInner} />}
+          </View>
         </TouchableOpacity>
-      )}
-    </View>
-  );
+        <View style={styles.taskInfo}>
+          <Text style={styles.taskName}>{item.taskName}</Text>
+          <Text style={styles.taskTime}>{item.scheduledTime}</Text>
+        </View>
+      </View>
+    );
+  };
 
   if (loading) {
     return (
@@ -73,7 +95,6 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.title}>今日のタスク</ThemedText>
       
       {error && (
         <Text style={styles.errorText}>{error}</Text>
@@ -82,12 +103,7 @@ export default function HomeScreen() {
       {executionsWithTaskNames.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>今日のタスクはありません</Text>
-          <TouchableOpacity
-            style={styles.createButton}
-            onPress={() => router.push('/tasks/create')}
-          >
-            <Text style={styles.createButtonText}>タスクを作成</Text>
-          </TouchableOpacity>
+          <Text style={styles.emptySubText}>右上の + ボタンから新しいタスクを作成できます</Text>
         </View>
       ) : (
         <FlatList
@@ -109,9 +125,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
-  title: {
-    marginBottom: 20,
-  },
   list: {
     flex: 1,
   },
@@ -121,8 +134,26 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  checkbox: {
+    marginRight: 15,
+  },
+  checkboxCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#2196F3',
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#2196F3',
   },
   taskInfo: {
     flex: 1,
@@ -135,25 +166,6 @@ const styles = StyleSheet.create({
   taskTime: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 4,
-  },
-  taskStatus: {
-    fontSize: 14,
-    color: '#666',
-  },
-  completedStatus: {
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
-  completeButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 5,
-  },
-  completeButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
   },
   emptyContainer: {
     flex: 1,
@@ -161,20 +173,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  emptySubText: {
     fontSize: 16,
     color: '#666',
-    marginBottom: 20,
-  },
-  createButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 5,
-  },
-  createButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
   },
   errorText: {
     color: 'red',
